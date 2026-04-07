@@ -1,6 +1,7 @@
 using UnityEngine;
 using System.Collections.Generic;
 using ClawSurvivor.Systems;
+using ClawSurvivor.Effects;
 
 namespace ClawSurvivor.Enemy
 {
@@ -21,6 +22,12 @@ namespace ClawSurvivor.Enemy
         [Tooltip("敌人类型")]
         public EnemyType enemyType = EnemyType.Normal;
 
+        [Header("特殊类型")]
+        [Tooltip("是否为Boss")]
+        public bool isBoss;
+        [Tooltip("是否为精英怪")]
+        public bool isElite;
+
         [Header("属性")]
         [Tooltip("最大生命值")]
         public int maxHealth = 20;
@@ -37,6 +44,12 @@ namespace ClawSurvivor.Enemy
         [Tooltip("攻击范围")]
         public float attackRange = 1f;
 
+        [Header("碰撞伤害")]
+        [Tooltip("碰撞伤害（普通小怪攻击的一半）")]
+        public int collisionDamage = 5;
+        [Tooltip("碰撞伤害冷却时间（秒）")]
+        public float collisionDamageCooldown = 0.5f;
+
         [Header("远程设置（仅远程型）")]
         [Tooltip("偏好距离（远程型保持的距离）")]
         public float preferredDistance = 6f;
@@ -48,6 +61,7 @@ namespace ClawSurvivor.Enemy
         private int currentHealth;
         private Transform playerTarget;
         private float attackTimer;
+        private float collisionDamageTimer; // 碰撞伤害冷却计时器
         private bool isDead;
 
         // 敌人基础颜色
@@ -124,6 +138,10 @@ namespace ClawSurvivor.Enemy
 
         private void Start()
         {
+            // 初始化碰撞伤害为普通攻击的一半
+            if (collisionDamage == 0)
+                collisionDamage = Mathf.Max(1, damage / 2);
+
             var player = FindObjectOfType<Player.PlayerController>();
             if (player != null)
                 playerTarget = player.transform;
@@ -223,11 +241,20 @@ namespace ClawSurvivor.Enemy
             var player = collision.collider.GetComponent<Player.PlayerController>();
             if (player != null)
             {
+                // 普通攻击冷却
                 attackTimer += Time.deltaTime;
                 if (attackTimer >= attackCooldown)
                 {
                     AttackPlayer();
                     attackTimer = 0f;
+                }
+
+                // 碰撞伤害（独立冷却，普通小怪攻击的一半伤害）
+                collisionDamageTimer += Time.deltaTime;
+                if (collisionDamageTimer >= collisionDamageCooldown)
+                {
+                    player.TakeDamage(collisionDamage);
+                    collisionDamageTimer = 0f;
                 }
             }
         }
@@ -290,6 +317,10 @@ namespace ClawSurvivor.Enemy
                 CreateExperienceGemDirectly();
             }
 
+            // 播放敌人死亡特效
+            if (EffectManager.Instance != null)
+                EffectManager.PlayEnemyDeath(transform.position);
+
             // 播放敌人死亡音效
             if (Systems.SoundManager.Instance != null)
                 Systems.SoundManager.Instance.PlaySFX(SFXType.EnemyDeath);
@@ -298,7 +329,58 @@ namespace ClawSurvivor.Enemy
             if (Pickups.PickupSpawner.Instance != null)
                 Pickups.PickupSpawner.Instance.TryDropItem(transform.position);
 
+            // 尝试掉落武器进化材料
+            TryDropEvolveMaterial();
+
             Destroy(gameObject);
+        }
+
+        /// <summary>
+        /// 尝试掉落武器进化材料
+        /// </summary>
+        private void TryDropEvolveMaterial()
+        {
+            // 根据敌人难度决定是否掉落进化材料
+            float dropChance = 0.1f; // 10%基础掉落率
+            
+            // Boss必定掉落
+            if (isBoss)
+            {
+                dropChance = 1f;
+            }
+            // 精英怪高概率掉落
+            else if (isElite)
+            {
+                dropChance = 0.5f;
+            }
+            
+            if (Random.value > dropChance) return;
+
+            // 根据波次数决定材料稀有度
+            int materialId = 1; // 默认普通
+            float waveProgress = 0f;
+            
+            var chapterMgr = Systems.ChapterManager.Instance;
+            if (chapterMgr != null)
+            {
+                waveProgress = (float)chapterMgr.currentWave / chapterMgr.totalWaves;
+            }
+            
+            // 波次越高，材料越稀有
+            float rand = Random.value;
+            if (waveProgress > 0.8f && rand > 0.7f)
+                materialId = 4; // 史诗
+            else if (waveProgress > 0.5f && rand > 0.5f)
+                materialId = 3; // 稀有
+            else if (waveProgress > 0.3f && rand > 0.3f)
+                materialId = 2; // 优秀
+            
+            // 直接给予材料（不通过物品掉落）
+            if (Weapons.WeaponUpgradeSystem.Instance != null)
+            {
+                Weapons.WeaponUpgradeSystem.Instance.CollectEvolveMaterial(materialId, isBoss ? 3 : 1);
+                Debug.Log($"掉落进化材料: {Pickups.EvolveMaterialIds.GetMaterialName(materialId)} x{(isBoss ? 3 : 1)}");
+            }
         }
 
         private void CreateExperienceGemDirectly()

@@ -67,6 +67,14 @@ namespace ClawSurvivor.Systems
         [Tooltip("总击杀数")]
         public int totalKills;
 
+        // === 章节选择（运行时） ===
+        [Tooltip("当前选择的章节")]
+        public int selectedChapter = 1;
+        [Tooltip("当前选择的宠物ID")]
+        public int selectedPetId = -1;
+        [Tooltip("当前选择的装备槽（0-5: 头盔/衣服/裤子/鞋子/武器/副武器）")]
+        public SerializableIntArray selectedEquipSlots = new SerializableIntArray();
+
         public SaveData()
         {
             gold = 0;
@@ -86,6 +94,9 @@ namespace ClawSurvivor.Systems
             highestLevel = 0;
             longestSurvivalTime = 0f;
             totalKills = 0;
+            selectedChapter = 1;
+            selectedPetId = -1;
+            selectedEquipSlots = new SerializableIntArray();
         }
 
         /// <summary>

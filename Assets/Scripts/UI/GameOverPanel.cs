@@ -102,8 +102,6 @@ namespace ClawSurvivor.UI
             CreateButton(panel.transform, "MenuBtn", "返回主菜单", new Vector2(110, -130), new Vector2(200, 50),
                 new Color(0.3f, 0.3f, 0.4f), new Color(0.4f, 0.4f, 0.5f), () =>
             {
-                if (Systems.SoundManager.Instance != null)
-                    Systems.SoundManager.Instance.PlaySFX(SFXType.ButtonClick);
                 if (Systems.SceneTransition.Instance != null)
                     Systems.SceneTransition.Instance.TransitionToMainMenu();
                 else
@@ -143,12 +141,19 @@ namespace ClawSurvivor.UI
             rt.anchoredPosition = pos;
             rt.sizeDelta = size;
 
-            btn.AddComponent<Image>().color = color;
+            Image bg = btn.AddComponent<Image>();
+            bg.color = color;
+            
             Button button = btn.AddComponent<Button>();
-            ColorBlock colors = button.colors;
-            colors.highlightedColor = hoverColor;
-            button.colors = colors;
-            button.onClick.AddListener(onClick);
+            button.transition = Selectable.Transition.None; // 简化过渡，避免复杂状态
+            
+            // 添加点击音效支持
+            button.onClick.AddListener(() =>
+            {
+                if (Systems.SoundManager.Instance != null)
+                    Systems.SoundManager.Instance.PlaySFX(SFXType.ButtonClick);
+                onClick?.Invoke();
+            });
 
             CreateText(btn.transform, "Label", label, Vector2.zero, size, 20, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
         }

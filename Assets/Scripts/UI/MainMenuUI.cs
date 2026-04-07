@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.UI;
+using TMPro;
 using ClawSurvivor.Systems;
 
 namespace ClawSurvivor.UI
@@ -15,7 +16,7 @@ namespace ClawSurvivor.UI
         [Tooltip("标题颜色")]
         public Color titleColor = new Color(1f, 0.85f, 0.2f);
         [Tooltip("副标题文字")]
-        public string subtitleText = "生存 · 战斗 · 进化";
+        public string subtitleText = "SURVIVAL";
         [Tooltip("副标题颜色")]
         public Color subtitleColor = new Color(0.7f, 0.7f, 0.8f);
         [Tooltip("按钮颜色")]
@@ -76,7 +77,9 @@ namespace ClawSurvivor.UI
             bgRT.sizeDelta = Vector2.zero;
             bgRT.offsetMin = Vector2.zero;
             bgRT.offsetMax = Vector2.zero;
-            bg.AddComponent<Image>().color = backgroundColor;
+            Image bgImg = bg.AddComponent<Image>();
+            bgImg.color = backgroundColor;
+            bgImg.raycastTarget = true;
 
             // 标题
             CreateText(uiRoot.transform, "Title", titleText, new Vector2(0, 150),
@@ -89,9 +92,18 @@ namespace ClawSurvivor.UI
             // 分隔线
             CreateLine(uiRoot.transform, "Line", new Vector2(0, 40), new Vector2(300, 3));
 
-            // 开始游戏按钮
-            CreateButton(uiRoot.transform, "StartBtn", "开始游戏", new Vector2(0, -30),
+            // 开始游戏按钮（章节模式）
+            CreateButton(uiRoot.transform, "StartBtn", "Chapter Mode", new Vector2(0, -30),
                 new Vector2(260, 60), buttonColor, buttonHoverColor, () =>
+                {
+                    if (SoundManager.Instance != null)
+                        SoundManager.Instance.PlaySFX(SFXType.ButtonClick);
+                    OpenChapterSelect();
+                });
+
+            // 无尽模式按钮
+            CreateButton(uiRoot.transform, "EndlessBtn", "Endless Mode", new Vector2(0, -100),
+                new Vector2(260, 60), new Color(0.6f, 0.3f, 0.2f), new Color(0.7f, 0.4f, 0.3f), () =>
                 {
                     if (SoundManager.Instance != null)
                         SoundManager.Instance.PlaySFX(SFXType.ButtonClick);
@@ -99,7 +111,7 @@ namespace ClawSurvivor.UI
                 });
 
             // 商店按钮
-            CreateButton(uiRoot.transform, "ShopBtn", "珍宝商店", new Vector2(0, -110),
+            CreateButton(uiRoot.transform, "ShopBtn", "Shop", new Vector2(0, -180),
                 new Vector2(260, 60), shopButtonColor, shopButtonHoverColor, () =>
                 {
                     if (SoundManager.Instance != null)
@@ -107,26 +119,8 @@ namespace ClawSurvivor.UI
                     OpenShop();
                 });
 
-            // 装备按钮
-            CreateButton(uiRoot.transform, "EquipBtn", "装备强化", new Vector2(0, -190),
-                new Vector2(260, 60), equipButtonColor, equipButtonHoverColor, () =>
-                {
-                    if (SoundManager.Instance != null)
-                        SoundManager.Instance.PlaySFX(SFXType.ButtonClick);
-                    OpenEquipPanel();
-                });
-
-            // 宠物按钮
-            CreateButton(uiRoot.transform, "PetBtn", "宠物系统", new Vector2(0, -270),
-                new Vector2(260, 60), petButtonColor, petButtonHoverColor, () =>
-                {
-                    if (SoundManager.Instance != null)
-                        SoundManager.Instance.PlaySFX(SFXType.ButtonClick);
-                    OpenPetPanel();
-                });
-
             // 退出游戏按钮
-            CreateButton(uiRoot.transform, "ExitBtn", "退出游戏", new Vector2(0, -350),
+            CreateButton(uiRoot.transform, "ExitBtn", "Exit", new Vector2(0, -260),
                 new Vector2(260, 60), exitButtonColor, exitButtonHoverColor, () =>
                 {
                     if (SoundManager.Instance != null)
@@ -138,22 +132,76 @@ namespace ClawSurvivor.UI
                 });
 
             // 版本信息
-            CreateText(uiRoot.transform, "Version", "v0.1 Alpha", new Vector2(180, -280),
+            CreateText(uiRoot.transform, "Version", "v0.1 Alpha", new Vector2(180, -320),
                 new Vector2(200, 30), 16, new Color(0.4f, 0.4f, 0.5f), TextAnchor.MiddleRight, FontStyle.Normal);
+        }
+
+        /// <summary>
+        /// 打开章节选择界面（包含装备和宠物选择）
+        /// </summary>
+        private void OpenChapterSelect()
+        {
+            Hide();
+            // 查找并显示章节选择UI
+            var canvas = GetComponentInParent<Canvas>();
+            if (canvas != null)
+            {
+                var chapterUI = canvas.GetComponentInChildren<ChapterSelectUI>();
+                if (chapterUI != null)
+                {
+                    chapterUI.Show();
+                }
+                else
+                {
+                    Debug.LogWarning("[MainMenuUI] 未找到 ChapterSelectUI，请确保已创建");
+                }
+            }
         }
 
         private void StartGame()
         {
-            if (SceneTransition.Instance != null)
+            Debug.Log("[MainMenuUI] StartGame 被调用");
+
+            // 直接启用游戏对象（最简单可靠的方式）
+            var mapGen = GameObject.Find("MapGenerator");
+            if (mapGen != null)
             {
-                SceneTransition.Instance.TransitionToGame();
+                mapGen.SetActive(true);
+                var mg = mapGen.GetComponent<ClawSurvivor.Map.MapGenerator>();
+                if (mg != null) mg.enabled = true;
             }
-            else
+
+            var player = GameObject.Find("Player");
+            if (player != null)
             {
-                // 没有SceneTransition时直接重启场景
-                UnityEngine.SceneManagement.SceneManager.LoadScene(
-                    UnityEngine.SceneManagement.SceneManager.GetActiveScene().buildIndex);
+                player.SetActive(true);
+                var pc = player.GetComponent<ClawSurvivor.Player.PlayerController>();
+                if (pc != null) pc.enabled = true;
             }
+
+            var spawner = GameObject.Find("EnemySpawner");
+            if (spawner != null)
+            {
+                spawner.SetActive(true);
+                var es = spawner.GetComponent<ClawSurvivor.Enemy.EnemySpawner>();
+                if (es != null) es.enabled = true;
+            }
+
+            var hud = GameObject.Find("GameHUD");
+            if (hud != null)
+            {
+                hud.SetActive(true);
+                var hudComp = hud.GetComponent<ClawSurvivor.UI.GameHUD>();
+                if (hudComp != null) hudComp.enabled = true;
+            }
+
+            // 隐藏主菜单
+            Hide();
+
+            // 恢复游戏时间
+            Time.timeScale = 1;
+
+            Debug.Log("[MainMenuUI] 游戏已启动");
         }
 
         private void OpenShop()
@@ -165,7 +213,7 @@ namespace ClawSurvivor.UI
             }
         }
 
-        private void OpenEquipPanel()
+        public void OpenEquipPanel()
         {
             Hide();
             // 查找并显示装备面板
@@ -176,7 +224,7 @@ namespace ClawSurvivor.UI
             }
         }
 
-        private void OpenPetPanel()
+        public void OpenPetPanel()
         {
             Hide();
             // 查找并显示宠物面板
@@ -187,7 +235,7 @@ namespace ClawSurvivor.UI
             }
         }
 
-        private Text CreateText(Transform parent, string name, string text, Vector2 anchorPos, Vector2 size,
+        private TextMeshProUGUI CreateText(Transform parent, string name, string text, Vector2 anchorPos, Vector2 size,
             int fontSize, Color color, TextAnchor align, FontStyle style)
         {
             GameObject go = new GameObject(name);
@@ -198,13 +246,37 @@ namespace ClawSurvivor.UI
             rt.pivot = new Vector2(0.5f, 0.5f);
             rt.anchoredPosition = anchorPos;
             rt.sizeDelta = size;
-            Text txt = go.AddComponent<Text>();
-            txt.text = text;
-            txt.fontSize = fontSize;
-            txt.color = color;
-            txt.alignment = align;
-            txt.fontStyle = style;
-            return txt;
+            TextMeshProUGUI tmp = go.AddComponent<TextMeshProUGUI>();
+            tmp.text = text;
+            tmp.fontSize = fontSize;
+            tmp.color = color;
+            tmp.alignment = TextAnchorToTMP(align);
+            tmp.fontStyle = style == FontStyle.Bold ? FontStyles.Bold : FontStyles.Normal;
+
+            // 统一设置字体
+            if (UIFontManager.Instance != null)
+            {
+                UIFontManager.Instance.SetFont(tmp);
+            }
+
+            return tmp;
+        }
+
+        private TextAlignmentOptions TextAnchorToTMP(TextAnchor anchor)
+        {
+            switch (anchor)
+            {
+                case TextAnchor.UpperLeft: return TextAlignmentOptions.TopLeft;
+                case TextAnchor.UpperCenter: return TextAlignmentOptions.Top;
+                case TextAnchor.UpperRight: return TextAlignmentOptions.TopRight;
+                case TextAnchor.MiddleLeft: return TextAlignmentOptions.MidlineLeft;
+                case TextAnchor.MiddleCenter: return TextAlignmentOptions.Center;
+                case TextAnchor.MiddleRight: return TextAlignmentOptions.MidlineRight;
+                case TextAnchor.LowerLeft: return TextAlignmentOptions.BottomLeft;
+                case TextAnchor.LowerCenter: return TextAlignmentOptions.Bottom;
+                case TextAnchor.LowerRight: return TextAlignmentOptions.BottomRight;
+                default: return TextAlignmentOptions.Center;
+            }
         }
 
         private void CreateLine(Transform parent, string name, Vector2 pos, Vector2 size)
@@ -240,6 +312,10 @@ namespace ClawSurvivor.UI
             button.colors = colors;
             button.onClick.AddListener(onClick);
 
+            // 确保 Image 的 RaycastTarget 为 true（UI交互必须）
+            var img = btn.GetComponent<Image>();
+            img.raycastTarget = true;
+
             // 按钮文字
             GameObject labelObj = new GameObject("Label");
             labelObj.transform.SetParent(btn.transform, false);
@@ -249,12 +325,18 @@ namespace ClawSurvivor.UI
             labelRT.pivot = new Vector2(0.5f, 0.5f);
             labelRT.anchoredPosition = Vector2.zero;
             labelRT.sizeDelta = Vector2.zero;
-            Text labelTxt = labelObj.AddComponent<Text>();
+            TextMeshProUGUI labelTxt = labelObj.AddComponent<TextMeshProUGUI>();
             labelTxt.text = label;
             labelTxt.fontSize = 24;
             labelTxt.color = Color.white;
-            labelTxt.alignment = TextAnchor.MiddleCenter;
-            labelTxt.fontStyle = FontStyle.Bold;
+            labelTxt.alignment = TextAlignmentOptions.Center;
+            labelTxt.fontStyle = FontStyles.Bold;
+
+            // 统一设置字体
+            if (UIFontManager.Instance != null)
+            {
+                UIFontManager.Instance.SetFont(labelTxt);
+            }
         }
 
         /// <summary>

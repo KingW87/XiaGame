@@ -11,7 +11,7 @@ namespace ClawSurvivor.Systems
         public static GameStarter Instance;
 
         // 需要隐藏的游戏对象名称
-        private string[] gameObjectNames = { "MapGenerator", "Player", "EnemySpawner", "GameHUD" };
+        private string[] gameObjectNames = { "MapGenerator", "Player", "EnemySpawner", "GameHUD", "BossHealthBarUI", "GoldShopUI", "PetSystem", "PauseMenuUI" };
 
         private void Awake()
         {

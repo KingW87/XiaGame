@@ -5,7 +5,9 @@ namespace ClawSurvivor.UI
 {
     public class GameHUD : MonoBehaviour
     {
-        [Header("跟随目标")]
+        [Header("跟随设置")]
+        [Tooltip("是否跟随玩家移动（关闭后可自由摆放位置）")]
+        public bool followPlayer = true;
         [Tooltip("需要跟随的目标Transform")]
         public Transform playerTransform;
 
@@ -76,31 +78,32 @@ namespace ClawSurvivor.UI
 
         private void FollowPlayer()
         {
-            if (playerTransform == null || parentCanvas == null) return;
+            if (!followPlayer || playerTransform == null || parentCanvas == null) return;
 
-            if (healthBar != null)
-                WorldToUI(playerTransform.position + (Vector3)healthBarOffset, healthBar.GetComponent<RectTransform>());
-
-            if (healthText != null)
-                WorldToUI(playerTransform.position + (Vector3)healthTextOffset, healthText.GetComponent<RectTransform>());
-
-            if (experienceBar != null)
-                WorldToUI(playerTransform.position + (Vector3)expBarOffset, experienceBar.GetComponent<RectTransform>());
-
-            if (levelText != null)
-                WorldToUI(playerTransform.position + (Vector3)levelTextOffset, levelText.GetComponent<RectTransform>());
-        }
-
-        private void WorldToUI(Vector3 worldPos, RectTransform uiRect)
-        {
-            Camera cam = parentCanvas.renderMode == RenderMode.ScreenSpaceOverlay ? null : parentCanvas.worldCamera;
-            Vector2 screenPos = cam != null
-                ? RectTransformUtility.WorldToScreenPoint(cam, worldPos)
-                : (Vector2)Camera.main.WorldToScreenPoint(worldPos);
-
-            RectTransformUtility.ScreenPointToLocalPointInRectangle(
-                parentCanvas.GetComponent<RectTransform>(), screenPos, cam, out Vector2 localPos);
-            uiRect.anchoredPosition = localPos;
+            // 获取Canvas的RectTransform
+            RectTransform canvasRect = parentCanvas.GetComponent<RectTransform>();
+            Camera cam = Camera.main;
+            
+            // 计算玩家在世界中的位置
+            Vector3 worldPos = playerTransform.position;
+            
+            // 转换为屏幕坐标
+            Vector2 screenPos = RectTransformUtility.WorldToScreenPoint(cam, worldPos);
+            
+            // 转换为Canvas内的本地坐标
+            Vector2 localPos;
+            if (RectTransformUtility.ScreenPointToLocalPointInRectangle(canvasRect, screenPos, cam, out localPos))
+            {
+                // 应用偏移
+                if (healthBar != null)
+                    healthBar.GetComponent<RectTransform>().anchoredPosition = localPos + healthBarOffset;
+                if (healthText != null)
+                    healthText.rectTransform.anchoredPosition = localPos + healthTextOffset;
+                if (experienceBar != null)
+                    experienceBar.GetComponent<RectTransform>().anchoredPosition = localPos + expBarOffset;
+                if (levelText != null)
+                    levelText.rectTransform.anchoredPosition = localPos + levelTextOffset;
+            }
         }
         
         private void UpdateHealthBar(int current, int max)

@@ -54,6 +54,10 @@ namespace ClawSurvivor.Map
         public float[] obstaclePositionsX;
         public float[] obstaclePositionsY;
         public bool isGenerated;
+        
+        // 方便MapGenerator使用的属性
+        public int obstacleCount;
+        public int decorationCount;
 
         public ChunkData(Vector2Int coord)
         {

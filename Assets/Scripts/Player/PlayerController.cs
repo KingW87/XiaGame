@@ -1,6 +1,7 @@
 using UnityEngine;
 using System.Collections.Generic;
 using ClawSurvivor.Systems;
+using ClawSurvivor.Effects;
 
 namespace ClawSurvivor.Player
 {
@@ -141,12 +142,20 @@ namespace ClawSurvivor.Player
         private void Attack()
         {
             if (nearestEnemy == null) return;
-            
+
             var enemy = nearestEnemy.GetComponent<Enemy.EnemyController>();
             if (enemy != null)
             {
                 int finalDamage = Mathf.RoundToInt(baseDamage * damageMultiplier);
                 enemy.TakeDamage(finalDamage);
+
+                // 播放攻击特效
+                if (EffectManager.Instance != null)
+                    EffectManager.PlayPlayerAttack(nearestEnemy.position);
+
+                // 播放攻击音效
+                if (SoundManager.Instance != null)
+                    SoundManager.Instance.PlaySFX(SFXType.PlayerAttack);
             }
         }
         
@@ -175,6 +184,10 @@ namespace ClawSurvivor.Player
 
             currentHealth -= damage;
             OnHealthChanged?.Invoke(currentHealth, maxHealth);
+
+            // 播放受伤特效
+            if (EffectManager.Instance != null)
+                EffectManager.PlayPlayerHit(transform.position);
 
             if (Systems.SoundManager.Instance != null)
                 Systems.SoundManager.Instance.PlaySFX(SFXType.PlayerHit);
@@ -243,9 +256,13 @@ namespace ClawSurvivor.Player
             level++;
             experience -= experienceToNextLevel;
             experienceToNextLevel = Mathf.RoundToInt(experienceToNextLevel * 1.5f);
-            
+
             // 恢复一定血量
             currentHealth = Mathf.Min(currentHealth + maxHealth / 3, maxHealth);
+
+            // 播放升级特效
+            if (EffectManager.Instance != null)
+                EffectManager.PlayLevelUp(transform.position);
 
             if (Systems.SoundManager.Instance != null)
                 Systems.SoundManager.Instance.PlaySFX(SFXType.LevelUp);
@@ -254,14 +271,38 @@ namespace ClawSurvivor.Player
             OnExperienceChanged?.Invoke(experience, experienceToNextLevel);
             OnHealthChanged?.Invoke(currentHealth, maxHealth);
         }
-        
+
         private void Die()
         {
             Debug.Log("玩家死亡 - 游戏结束");
+            // 播放死亡特效
+            if (EffectManager.Instance != null)
+                EffectManager.Instance.PlayEffect(EffectType.PlayerDeath, transform.position);
+
             if (Systems.SoundManager.Instance != null)
                 Systems.SoundManager.Instance.PlaySFX(SFXType.PlayerDeath);
-            if (Systems.GameManager.Instance != null)
+
+            // 章节模式死亡
+            if (Systems.ChapterManager.Instance != null && Systems.ChapterManager.Instance.isInChapterMode)
+            {
+                Systems.ChapterManager.Instance.FailChapter();
+            }
+            else if (Systems.GameManager.Instance != null)
+            {
                 Systems.GameManager.Instance.GameOver();
+            }
+        }
+
+        /// <summary>
+        /// 检查玩家是否在毒圈内
+        /// </summary>
+        public bool IsInsidePoisonCircle()
+        {
+            var poisonCircle = FindObjectOfType<Systems.PoisonCircle>();
+            if (poisonCircle == null) return true; // 没有毒圈默认安全
+
+            float dist = Vector2.Distance(poisonCircle.transform.position, transform.position);
+            return dist <= poisonCircle.currentRadius;
         }
         
         // 属性加成方法

@@ -12,7 +12,60 @@ namespace ClawSurvivor.Pickups
         Shield,        // 护盾：获得可吸收伤害的护盾
         ExpBoost,      // 经验加倍：临时提升经验获取
         Magnet,        // 磁力增强：临时扩大吸附范围
-        Bomb           // 炸弹清屏：消灭屏幕范围内所有普通敌人
+        Bomb,          // 炸弹清屏：消灭屏幕范围内所有普通敌人
+        
+        // 武器进化材料
+        EvolveMaterial_Common,    // 普通进化材料
+        EvolveMaterial_Uncommon,   // 优秀进化材料
+        EvolveMaterial_Rare,      // 稀有进化材料
+        EvolveMaterial_Epic,      // 史诗进化材料
+    }
+
+    /// <summary>
+    /// 进化材料ID对应
+    /// </summary>
+    public static class EvolveMaterialIds
+    {
+        public const int Common = 1;
+        public const int Uncommon = 2;
+        public const int Rare = 3;
+        public const int Epic = 4;
+
+        public static PickupType GetPickupType(int materialId)
+        {
+            switch (materialId)
+            {
+                case Common: return PickupType.EvolveMaterial_Common;
+                case Uncommon: return PickupType.EvolveMaterial_Uncommon;
+                case Rare: return PickupType.EvolveMaterial_Rare;
+                case Epic: return PickupType.EvolveMaterial_Epic;
+                default: return PickupType.EvolveMaterial_Common;
+            }
+        }
+
+        public static Color GetMaterialColor(int materialId)
+        {
+            switch (materialId)
+            {
+                case Common: return new Color(0.7f, 0.7f, 0.7f);      // 灰色
+                case Uncommon: return new Color(0.2f, 0.8f, 0.2f);    // 绿色
+                case Rare: return new Color(0.2f, 0.4f, 1f);          // 蓝色
+                case Epic: return new Color(0.6f, 0.2f, 0.8f);       // 紫色
+                default: return Color.white;
+            }
+        }
+
+        public static string GetMaterialName(int materialId)
+        {
+            switch (materialId)
+            {
+                case Common: return "普通精华";
+                case Uncommon: return "优秀精华";
+                case Rare: return "稀有精华";
+                case Epic: return "史诗精华";
+                default: return "进化材料";
+            }
+        }
     }
 
     /// <summary>

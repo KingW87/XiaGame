@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using System.Collections;
 using ClawSurvivor.Enemy;
+using ClawSurvivor.Systems;
 
 namespace ClawSurvivor.UI
 {
@@ -18,6 +19,10 @@ namespace ClawSurvivor.UI
         public float displayDuration = 3f;
         [Tooltip("Boss波次显示时长（秒）")]
         public float bossDisplayDuration = 4f;
+        [Tooltip("毒圈通知颜色")]
+        public Color poisonCircleColor = new Color(0.6f, 0f, 0.6f);
+        [Tooltip("毒圈显示时长（秒）")]
+        public float poisonDisplayDuration = 4f;
 
         private Canvas parentCanvas;
         private GameObject uiRoot;
@@ -31,6 +36,23 @@ namespace ClawSurvivor.UI
             parentCanvas = GetComponentInParent<Canvas>();
             CreateUI();
             uiRoot.SetActive(false);
+
+            // 订阅毒圈事件
+            var chapterManager = FindObjectOfType<ChapterManager>();
+            if (chapterManager != null)
+            {
+                chapterManager.OnPoisonCircleStart += ShowPoisonCircleNotify;
+            }
+        }
+
+        private void OnDestroy()
+        {
+            // 取消订阅
+            var chapterManager = FindObjectOfType<ChapterManager>();
+            if (chapterManager != null)
+            {
+                chapterManager.OnPoisonCircleStart -= ShowPoisonCircleNotify;
+            }
         }
 
         private void Update()
@@ -104,6 +126,20 @@ namespace ClawSurvivor.UI
             if (fadeCoroutine != null)
                 StopCoroutine(fadeCoroutine);
             fadeCoroutine = StartCoroutine(FadeAndHide(isBossWave ? bossDisplayDuration : displayDuration));
+        }
+
+        private void ShowPoisonCircleNotify()
+        {
+            waveText.text = "毒圈来袭！";
+            waveText.color = poisonCircleColor;
+            waveText.fontSize = 40;
+            subText.text = "毒圈正在缩小，圈外会持续掉血！";
+
+            uiRoot.SetActive(true);
+
+            if (fadeCoroutine != null)
+                StopCoroutine(fadeCoroutine);
+            fadeCoroutine = StartCoroutine(FadeAndHide(poisonDisplayDuration));
         }
 
         private IEnumerator FadeAndHide(float duration)

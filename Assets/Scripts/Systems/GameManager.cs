@@ -81,10 +81,23 @@ namespace ClawSurvivor.Systems
         
         public void RestartGame()
         {
+            // 必须在恢复时间尺度后才能正确加载场景
             Time.timeScale = 1;
+            
+            // 异步加载当前场景
+            StartCoroutine(RestartGameCoroutine());
+        }
+
+        private System.Collections.IEnumerator RestartGameCoroutine()
+        {
+            // 等待一帧确保时间尺度生效
+            yield return null;
+            
             // 清理地图块
             if (mapGenerator != null)
                 mapGenerator.ClearAllChunks();
+            
+            // 加载场景
             SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
         }
         

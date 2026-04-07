@@ -3,7 +3,10 @@ guid: 928d81abdb7e18a458f2a8299c69704d
 MonoImporter:
   externalObjects: {}
   serializedVersion: 2
-  defaultReferences: []
+  defaultReferences:
+  - mainMenuPrefab: {instanceID: 0}
+  - battleScenePrefab: {instanceID: 0}
+  - battleParent: {instanceID: 0}
   executionOrder: 0
   icon: {instanceID: 0}
   userData: 

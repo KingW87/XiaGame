@@ -1,108 +1,258 @@
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.EventSystems;
 using ClawSurvivor.Skills;
+using System.Collections;
+using System;
 
 namespace ClawSurvivor.UI
 {
+    /// <summary>
+    /// 技能选择面板 - 可作为预制体使用
+    /// 使用方式：
+    /// 1. 将此脚本挂载到Canvas上的空对象，保存为预制体
+    /// 2. 调用 LevelUpPanel.Show(skills) 显示面板
+    /// 3. 监听 OnSkillSelected 事件获取选择结果
+    /// </summary>
     public class LevelUpPanel : MonoBehaviour
     {
         [Header("面板设置")]
-        [Tooltip("面板背景颜色")]
-        public Color panelColor = new Color(0.1f, 0.1f, 0.15f, 0.92f);
-        [Tooltip("标题颜色")]
+        public Color panelColor = new Color(0.1f, 0.1f, 0.15f, 0.95f);
         public Color titleColor = new Color(1f, 0.85f, 0.2f);
-        [Tooltip("按钮颜色")]
-        public Color buttonColor = new Color(0.2f, 0.2f, 0.3f, 0.9f);
-        [Tooltip("按钮悬停颜色")]
-        public Color buttonHoverColor = new Color(0.3f, 0.35f, 0.5f, 0.95f);
-        [Tooltip("面板宽度")]
-        public float panelWidth = 700f;
-        [Tooltip("面板高度")]
-        public float panelHeight = 400f;
-        [Tooltip("选项按钮高度")]
-        public float optionHeight = 80f;
-        [Tooltip("选项间距")]
-        public float optionSpacing = 20f;
+        public Color buttonColor = new Color(0.15f, 0.15f, 0.25f, 0.95f);
+        public Color buttonHoverColor = new Color(0.3f, 0.3f, 0.5f, 0.95f);
+        public Color buttonSelectedColor = new Color(0.4f, 0.4f, 0.6f, 1f);
 
-        [Header("面板位置偏移")]
-        [Tooltip("面板中心偏移")]
-        public Vector2 panelOffset = Vector2.zero;
+        [Header("布局设置")]
+        public float panelWidth = 900f;
+        public float panelHeight = 350f;
+        public float cardWidth = 250f;
+        public float cardHeight = 300f;
+        public float cardSpacing = 30f;
 
-        private Canvas parentCanvas;
-        private RectTransform canvasRect;
-        private GameObject uiRoot;
-        private RectTransform panelRect;
-        private Text[] choiceNames;
-        private Text[] choiceDescriptions;
-        private Text[] choiceTypes;
+        [Header("技能图标")]
+        public Sprite[] skillIcons;
+
+        // 事件：技能被选中时触发 (选中的技能索引, 技能数据)
+        public static event Action<int, SkillCard> OnSkillSelected;
+
+        // 内部数据
+        private GameObject[] optionCards;
+        private Image[] optionIcons;
+        private Text[] optionNames;
+        private Text[] optionDescs;
+        private Text[] optionTypes;
         private SkillCard[] currentChoices;
-        private bool isShowing;
+        private int selectedIndex = -1;
 
-        private void Start()
+        private void Awake()
         {
-            parentCanvas = GetComponentInParent<Canvas>();
-            canvasRect = parentCanvas.GetComponent<RectTransform>();
-
             CreatePanelUI();
+            gameObject.SetActive(false);
+        }
 
-            var player = FindObjectOfType<Player.PlayerController>();
-            if (player != null)
-                player.OnLevelUp += OnLevelUp;
+        /// <summary>
+        /// 显示技能选择面板（静态方法，自动创建或显示现有面板）
+        /// </summary>
+        /// <param name="skills">可选择的技能数组（通常为3个）</param>
+        public static void Show(SkillCard[] skills)
+        {
+            // 尝试获取现有面板
+            LevelUpPanel panel = FindObjectOfType<LevelUpPanel>();
+            
+            if (panel == null)
+            {
+                // 如果没有找到，创建一个新的Canvas和面板
+                Canvas canvas = CreateUIRoot();
+                panel = CreatePanel(canvas).GetComponent<LevelUpPanel>();
+            }
 
-            uiRoot.SetActive(false);
+            panel.SetSkills(skills);
+            panel.gameObject.SetActive(true);
+            Time.timeScale = 0;
+        }
+
+        /// <summary>
+        /// 隐藏面板
+        /// </summary>
+        public static void Hide()
+        {
+            LevelUpPanel panel = FindObjectOfType<LevelUpPanel>();
+            if (panel != null)
+            {
+                panel.gameObject.SetActive(false);
+                Time.timeScale = 1;
+            }
+        }
+
+        private void SetSkills(SkillCard[] skills)
+        {
+            currentChoices = skills;
+            selectedIndex = -1;
+
+            for (int i = 0; i < 3; i++)
+            {
+                if (i < skills.Length && skills[i] != null)
+                {
+                    SkillCard skill = skills[i];
+                    optionNames[i].text = skill.skillName;
+                    optionDescs[i].text = skill.description;
+
+                    // 设置技能图标
+                    int iconIndex = GetSkillIconIndex(skill.skillName);
+                    if (skillIcons != null && iconIndex >= 0 && iconIndex < skillIcons.Length && skillIcons[iconIndex] != null)
+                    {
+                        optionIcons[i].sprite = skillIcons[iconIndex];
+                        optionIcons[i].enabled = true;
+                    }
+                    else
+                    {
+                        optionIcons[i].enabled = false;
+                    }
+
+                    // 设置类型标签
+                    switch (skill.type)
+                    {
+                        case SkillType.Damage:
+                            optionTypes[i].text = "伤害";
+                            optionTypes[i].color = Color.red;
+                            break;
+                        case SkillType.Control:
+                            optionTypes[i].text = "控制";
+                            optionTypes[i].color = Color.cyan;
+                            break;
+                        case SkillType.Support:
+                            optionTypes[i].text = "辅助";
+                            optionTypes[i].color = Color.green;
+                            break;
+                    }
+
+                    optionCards[i].SetActive(true);
+                }
+                else
+                {
+                    optionCards[i].SetActive(false);
+                }
+            }
         }
 
         private void CreatePanelUI()
         {
-            uiRoot = new GameObject("LevelUpUI");
-            uiRoot.transform.SetParent(parentCanvas.transform, false);
-            RectTransform uiRootRT = uiRoot.AddComponent<RectTransform>();
-            uiRootRT.anchorMin = Vector2.zero;
-            uiRootRT.anchorMax = Vector2.one;
-            uiRootRT.pivot = new Vector2(0.5f, 0.5f);
-            uiRootRT.anchoredPosition = Vector2.zero;
-            uiRootRT.sizeDelta = Vector2.zero;
+            // 主面板
+            RectTransform panelRT = gameObject.AddComponent<RectTransform>();
+            panelRT.anchorMin = Vector2.zero;
+            panelRT.anchorMax = Vector2.one;
+            panelRT.pivot = new Vector2(0.5f, 0.5f);
+            panelRT.anchoredPosition = Vector2.zero;
+            panelRT.sizeDelta = Vector2.zero;
+
+            // 确保有CanvasGroup用于管理可见性
+            CanvasGroup canvasGroup = gameObject.AddComponent<CanvasGroup>();
+            canvasGroup.blocksRaycasts = true;
 
             // 背景遮罩
             GameObject mask = new GameObject("Mask");
-            mask.transform.SetParent(uiRoot.transform, false);
+            mask.transform.SetParent(transform, false);
             RectTransform maskRT = mask.AddComponent<RectTransform>();
             maskRT.anchorMin = Vector2.zero;
             maskRT.anchorMax = Vector2.one;
             maskRT.pivot = Vector2.zero;
             maskRT.anchoredPosition = Vector2.zero;
             maskRT.sizeDelta = Vector2.zero;
-            maskRT.offsetMin = Vector2.zero;
-            maskRT.offsetMax = Vector2.zero;
             Image maskImg = mask.AddComponent<Image>();
-            maskImg.color = new Color(0, 0, 0, 0.6f);
+            maskImg.color = new Color(0, 0, 0, 0.7f);
 
-            // 面板
-            GameObject panel = new GameObject("Panel");
-            panel.transform.SetParent(uiRoot.transform, false);
-            panelRect = panel.AddComponent<RectTransform>();
-            panelRect.anchorMin = new Vector2(0.5f, 0.5f);
-            panelRect.anchorMax = new Vector2(0.5f, 0.5f);
-            panelRect.pivot = new Vector2(0.5f, 0.5f);
-            panelRect.anchoredPosition = panelOffset;
-            panelRect.sizeDelta = new Vector2(panelWidth, panelHeight);
-            Image panelImg = panel.AddComponent<Image>();
+            // 技能面板
+            GameObject skillPanel = new GameObject("SkillPanel");
+            skillPanel.transform.SetParent(transform, false);
+            RectTransform skillPanelRT = skillPanel.AddComponent<RectTransform>();
+            skillPanelRT.anchorMin = new Vector2(0.5f, 0.5f);
+            skillPanelRT.anchorMax = new Vector2(0.5f, 0.5f);
+            skillPanelRT.pivot = new Vector2(0.5f, 0.5f);
+            skillPanelRT.anchoredPosition = new Vector2(0, 50);
+            skillPanelRT.sizeDelta = new Vector2(panelWidth, panelHeight);
+            Image panelImg = skillPanel.AddComponent<Image>();
             panelImg.color = panelColor;
 
             // 标题
-            CreateText(panel.transform, "Title", "升级！选择一个技能", new Vector2(0, -30), new Vector2(400, 50), 28, titleColor, TextAnchor.MiddleCenter, true);
+            CreateText(skillPanel.transform, "Title", "选择技能", new Vector2(0, panelHeight / 2 - 40), new Vector2(400, 50), 36, titleColor, TextAnchor.MiddleCenter, true);
 
-            // 3个选项
-            choiceNames = new Text[3];
-            choiceDescriptions = new Text[3];
-            choiceTypes = new Text[3];
+            // 创建3个技能卡片
+            optionCards = new GameObject[3];
+            optionIcons = new Image[3];
+            optionNames = new Text[3];
+            optionDescs = new Text[3];
+            optionTypes = new Text[3];
 
-            float startY = -80;
+            float startX = -(cardWidth * 1.5f + cardSpacing);
+
             for (int i = 0; i < 3; i++)
             {
-                float y = startY - i * (optionHeight + optionSpacing);
-                CreateOptionButton(panel.transform, i, y);
+                float x = startX + i * (cardWidth + cardSpacing);
+                CreateSkillCard(skillPanel.transform, i, x);
             }
+        }
+
+        private void CreateSkillCard(Transform parent, int index, float x)
+        {
+            // 卡片容器
+            GameObject card = new GameObject($"SkillCard_{index}");
+            card.transform.SetParent(parent);
+            RectTransform cardRT = card.AddComponent<RectTransform>();
+            cardRT.anchorMin = new Vector2(0.5f, 0.5f);
+            cardRT.anchorMax = new Vector2(0.5f, 0.5f);
+            cardRT.pivot = new Vector2(0.5f, 0.5f);
+            cardRT.anchoredPosition = new Vector2(x, -20);
+            cardRT.sizeDelta = new Vector2(cardWidth, cardHeight);
+
+            Image cardBg = card.AddComponent<Image>();
+            cardBg.color = buttonColor;
+            cardBg.type = Image.Type.Sliced;
+
+            // 使用 EventTrigger 处理点击
+            EventTrigger trigger = card.AddComponent<EventTrigger>();
+            EventTrigger.Entry clickEntry = new EventTrigger.Entry();
+            clickEntry.eventID = EventTriggerType.PointerClick;
+            int idx = index;
+            clickEntry.callback.AddListener((data) => OnCardClicked(idx));
+            trigger.triggers.Add(clickEntry);
+
+            optionCards[index] = card;
+
+            // 技能图标区域
+            GameObject iconArea = new GameObject("IconArea");
+            iconArea.transform.SetParent(card.transform);
+            RectTransform iconRT = iconArea.AddComponent<RectTransform>();
+            iconRT.anchorMin = new Vector2(0.5f, 1f);
+            iconRT.anchorMax = new Vector2(0.5f, 1f);
+            iconRT.pivot = new Vector2(0.5f, 0.5f);
+            iconRT.anchoredPosition = new Vector2(0, -70);
+            iconRT.sizeDelta = new Vector2(100, 100);
+
+            Image iconBg = iconArea.AddComponent<Image>();
+            iconBg.color = new Color(0.2f, 0.2f, 0.3f, 1f);
+
+            // 技能图标
+            GameObject iconGO = new GameObject("Icon");
+            iconGO.transform.SetParent(iconArea.transform);
+            RectTransform iconImgRT = iconGO.AddComponent<RectTransform>();
+            iconImgRT.anchorMin = new Vector2(0.5f, 0.5f);
+            iconImgRT.anchorMax = new Vector2(0.5f, 0.5f);
+            iconImgRT.pivot = new Vector2(0.5f, 0.5f);
+            iconImgRT.anchoredPosition = Vector2.zero;
+            iconImgRT.sizeDelta = new Vector2(80, 80);
+
+            optionIcons[index] = iconGO.AddComponent<Image>();
+            optionIcons[index].color = Color.white;
+
+            // 技能名称
+            optionNames[index] = CreateText(card.transform, $"Name_{index}", "", new Vector2(0, -130), new Vector2(cardWidth - 20, 30), 22, Color.white, TextAnchor.MiddleCenter, true);
+
+            // 技能类型标签
+            optionTypes[index] = CreateText(card.transform, $"Type_{index}", "", new Vector2(0, -160), new Vector2(cardWidth - 20, 25), 16, Color.green, TextAnchor.MiddleCenter, false);
+
+            // 技能描述
+            optionDescs[index] = CreateText(card.transform, $"Desc_{index}", "", new Vector2(0, -220), new Vector2(cardWidth - 20, 80), 14, new Color(0.8f, 0.8f, 0.8f), TextAnchor.UpperCenter, false);
         }
 
         private Text CreateText(Transform parent, string name, string text, Vector2 anchorPos, Vector2 size, int fontSize, Color color, TextAnchor align, bool bold)
@@ -110,9 +260,9 @@ namespace ClawSurvivor.UI
             GameObject go = new GameObject(name);
             go.transform.SetParent(parent, false);
             RectTransform rt = go.AddComponent<RectTransform>();
-            rt.anchorMin = new Vector2(0.5f, 1f);
-            rt.anchorMax = new Vector2(0.5f, 1f);
-            rt.pivot = new Vector2(0.5f, 1f);
+            rt.anchorMin = new Vector2(0.5f, 0.5f);
+            rt.anchorMax = new Vector2(0.5f, 0.5f);
+            rt.pivot = new Vector2(0.5f, 0.5f);
             rt.anchoredPosition = anchorPos;
             rt.sizeDelta = size;
             Text txt = go.AddComponent<Text>();
@@ -124,129 +274,73 @@ namespace ClawSurvivor.UI
             return txt;
         }
 
-        private void CreateOptionButton(Transform parent, int index, float y)
+        private void OnCardClicked(int index)
         {
-            GameObject btn = new GameObject($"Option_{index}");
-            btn.transform.SetParent(parent);
+            if (currentChoices == null || index >= currentChoices.Length || currentChoices[index] == null)
+                return;
 
-            RectTransform btnRT = btn.AddComponent<RectTransform>();
-            btnRT.anchorMin = new Vector2(0.5f, 1f);
-            btnRT.anchorMax = new Vector2(0.5f, 1f);
-            btnRT.pivot = new Vector2(0.5f, 1f);
-            btnRT.anchoredPosition = new Vector2(0, y);
-            btnRT.sizeDelta = new Vector2(panelWidth - 80, optionHeight);
+            selectedIndex = index;
 
-            Image btnImg = btn.AddComponent<Image>();
-            btnImg.color = buttonColor;
-            btnImg.type = Image.Type.Sliced;
-
-            Button button = btn.AddComponent<Button>();
-            ColorBlock colors = button.colors;
-            colors.highlightedColor = buttonHoverColor;
-            button.colors = colors;
-
-            int idx = index;
-            button.onClick.AddListener(() => SelectSkill(idx));
-
-            // 技能名称
-            GameObject nameObj = new GameObject("Name");
-            nameObj.transform.SetParent(btn.transform);
-            RectTransform nameRT = nameObj.AddComponent<RectTransform>();
-            nameRT.anchorMin = new Vector2(0, 0.5f);
-            nameRT.anchorMax = new Vector2(0, 0.5f);
-            nameRT.pivot = new Vector2(0, 0.5f);
-            nameRT.anchoredPosition = new Vector2(30, 10);
-            nameRT.sizeDelta = new Vector2(300, 35);
-            choiceNames[index] = nameObj.AddComponent<Text>();
-            choiceNames[index].fontSize = 20;
-            choiceNames[index].color = Color.white;
-            choiceNames[index].fontStyle = FontStyle.Bold;
-            choiceNames[index].alignment = TextAnchor.MiddleLeft;
-
-            // 技能类型标签
-            GameObject typeObj = new GameObject("Type");
-            typeObj.transform.SetParent(btn.transform);
-            RectTransform typeRT = typeObj.AddComponent<RectTransform>();
-            typeRT.anchorMin = new Vector2(1, 0.5f);
-            typeRT.anchorMax = new Vector2(1, 0.5f);
-            typeRT.pivot = new Vector2(1, 0.5f);
-            typeRT.anchoredPosition = new Vector2(-30, 10);
-            typeRT.sizeDelta = new Vector2(100, 30);
-            choiceTypes[index] = typeObj.AddComponent<Text>();
-            choiceTypes[index].fontSize = 16;
-            choiceTypes[index].alignment = TextAnchor.MiddleRight;
-
-            // 技能描述
-            GameObject descObj = new GameObject("Desc");
-            descObj.transform.SetParent(btn.transform);
-            RectTransform descRT = descObj.AddComponent<RectTransform>();
-            descRT.anchorMin = new Vector2(0, 0.5f);
-            descRT.anchorMax = new Vector2(0, 0.5f);
-            descRT.pivot = new Vector2(0, 0.5f);
-            descRT.anchoredPosition = new Vector2(30, -18);
-            descRT.sizeDelta = new Vector2(panelWidth - 160, 25);
-            choiceDescriptions[index] = descObj.AddComponent<Text>();
-            choiceDescriptions[index].fontSize = 14;
-            choiceDescriptions[index].color = new Color(0.8f, 0.8f, 0.8f);
-            choiceDescriptions[index].alignment = TextAnchor.MiddleLeft;
-        }
-
-        private void OnLevelUp(int newLevel)
-        {
-            ShowLevelUpChoices();
-        }
-
-        private void ShowLevelUpChoices()
-        {
-            if (isShowing) return;
-
-            currentChoices = SkillDatabase.Instance.GetRandomSkills(3);
-
+            // 高亮选中卡片
             for (int i = 0; i < 3; i++)
             {
-                if (i < currentChoices.Length && currentChoices[i] != null)
+                if (optionCards[i] != null)
                 {
-                    choiceNames[i].text = currentChoices[i].skillName;
-                    choiceDescriptions[i].text = currentChoices[i].description;
-
-                    switch (currentChoices[i].type)
+                    Image bg = optionCards[i].GetComponent<Image>();
+                    if (bg != null)
                     {
-                        case SkillType.Damage:
-                            choiceTypes[i].text = "[伤害]";
-                            choiceTypes[i].color = Color.red;
-                            break;
-                        case SkillType.Control:
-                            choiceTypes[i].text = "[控制]";
-                            choiceTypes[i].color = Color.cyan;
-                            break;
-                        case SkillType.Support:
-                            choiceTypes[i].text = "[辅助]";
-                            choiceTypes[i].color = Color.green;
-                            break;
+                        bg.color = (i == index) ? buttonSelectedColor : buttonColor;
                     }
                 }
             }
 
-            uiRoot.SetActive(true);
-            Time.timeScale = 0;
-            isShowing = true;
-        }
+            // 触发事件
+            OnSkillSelected?.Invoke(index, currentChoices[index]);
 
-        private void SelectSkill(int index)
-        {
-            if (index >= currentChoices.Length || currentChoices[index] == null) return;
-
-            var player = FindObjectOfType<Player.PlayerController>();
-            player.EquipSkill(currentChoices[index]);
-
-            ClosePanel();
-        }
-
-        private void ClosePanel()
-        {
-            uiRoot.SetActive(false);
+            // 隐藏面板
+            gameObject.SetActive(false);
             Time.timeScale = 1;
-            isShowing = false;
+        }
+
+        private int GetSkillIconIndex(string skillName)
+        {
+            string[] skillOrder = new string[]
+            {
+                "冰霜新星", "治疗波", "雷电打击", "火焰旋风", "护盾", "生命汲取",
+                "疾风步", "力量涌动", "狂热", "钢铁之躯", "吸血体质", "磁力吸引"
+            };
+
+            for (int i = 0; i < skillOrder.Length; i++)
+            {
+                if (skillName.Contains(skillOrder[i]))
+                    return i;
+            }
+            return -1;
+        }
+
+        /// <summary>
+        /// 创建UI根节点
+        /// </summary>
+        private static Canvas CreateUIRoot()
+        {
+            GameObject canvasGO = new GameObject("LevelUpCanvas");
+            canvasGO.AddComponent<Canvas>();
+            canvasGO.AddComponent<CanvasScaler>();
+            canvasGO.AddComponent<GraphicRaycaster>();
+            Canvas canvas = canvasGO.GetComponent<Canvas>();
+            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            canvas.sortingOrder = 1000;
+            return canvas;
+        }
+
+        /// <summary>
+        /// 创建面板预制体
+        /// </summary>
+        private static GameObject CreatePanel(Canvas canvas)
+        {
+            GameObject panel = new GameObject("LevelUpPanel");
+            panel.transform.SetParent(canvas.transform, false);
+            return panel;
         }
     }
 }

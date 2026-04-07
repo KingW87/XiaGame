@@ -152,22 +152,25 @@ namespace ClawSurvivor.Enemy
 
         private void SpawnEnemy()
         {
-            if (playerTransform == null) return;
+            SpawnEnemyAt((Vector2)playerTransform.position + Random.insideUnitCircle.normalized * Random.Range(playerSafeRadius, spawnRadius));
+        }
 
-            Vector2 randomCircle = Random.insideUnitCircle.normalized * Random.Range(playerSafeRadius, spawnRadius);
-            Vector2 spawnPos = (Vector2)playerTransform.position + randomCircle;
-
+        /// <summary>
+        /// 在指定位置强制生成敌人（用于撤离阶段）
+        /// </summary>
+        public void SpawnEnemyAt(Vector2 position)
+        {
             EnemySpawnRule rule = GetRandomSpawnRule();
             if (rule == null) return;
 
             GameObject enemy;
             if (rule.enemyPrefab != null)
             {
-                enemy = Instantiate(rule.enemyPrefab, spawnPos, Quaternion.identity);
+                enemy = Instantiate(rule.enemyPrefab, position, Quaternion.identity);
             }
             else
             {
-                enemy = CreateEnemyFallback(spawnPos, rule.enemyType);
+                enemy = CreateEnemyFallback(position, rule.enemyType);
             }
 
             var controller = enemy.GetComponent<EnemyController>();
@@ -181,6 +184,7 @@ namespace ClawSurvivor.Enemy
         {
             GameObject enemy = new GameObject($"Enemy_{type}");
             enemy.transform.position = pos;
+            // 注意：不设置tag，MiniMap通过EnemyController组件来查找敌人
 
             SpriteRenderer sr = enemy.AddComponent<SpriteRenderer>();
             sr.sortingOrder = 5;
@@ -286,6 +290,7 @@ namespace ClawSurvivor.Enemy
             {
                 bossObj = new GameObject($"Boss_{rule.bossType}_Lv{bossLevel}");
                 bossObj.transform.position = spawnPos;
+                // 注意：不设置tag，MiniMap通过EnemyController组件来查找敌人
 
                 SpriteRenderer sr = bossObj.AddComponent<SpriteRenderer>();
                 sr.sortingOrder = 5;

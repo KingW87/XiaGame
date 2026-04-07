@@ -12,35 +12,71 @@ namespace ClawSurvivor.Weapons
         [Tooltip("当前装备的武器数据")]
         public WeaponData currentWeapon;
 
+        [Header("武器ID")]
+        public int currentWeaponId = 0; // 在AllWeapons数组中的索引
+
         private Player.PlayerController player;
         private float attackTimer;
         private List<GameObject> orbitalObjects = new List<GameObject>();
 
         public WeaponData CurrentWeapon => currentWeapon;
+        public int CurrentWeaponId => currentWeaponId;
         public System.Action<WeaponData> OnWeaponChanged;
 
         private void Start()
         {
             player = GetComponent<Player.PlayerController>();
+            
+            // 确保升级系统存在
+            if (WeaponUpgradeSystem.Instance == null)
+            {
+                GameObject go = new GameObject("WeaponUpgradeSystem");
+                go.AddComponent<WeaponUpgradeSystem>();
+            }
+            
             // 默认武器：短剑
+            currentWeaponId = 0;
             currentWeapon = WeaponData.AllWeapons[0];
+            
+            // 应用升级属性
+            ApplyWeaponStats();
+        }
+
+        /// <summary>
+        /// 应用武器升级/进化属性
+        /// </summary>
+        public void ApplyWeaponStats()
+        {
+            var info = WeaponUpgradeSystem.Instance.GetWeaponInfo(currentWeaponId);
+            
+            // 如果已进化，使用进化后的数据
+            if (info.isEvolved && currentWeapon.evolvedWeapon != null)
+            {
+                currentWeapon = currentWeapon.evolvedWeapon;
+            }
+            
+            // 应用攻速
+            attackTimer = 0f;
         }
 
         private void Update()
         {
+            // 计算实际攻速（考虑升级加成）
+            float actualAttackSpeed = GetActualAttackSpeed();
+            
             attackTimer += Time.deltaTime;
 
             switch (currentWeapon.type)
             {
                 case WeaponType.Melee:
-                    if (attackTimer >= currentWeapon.attackSpeed)
+                    if (attackTimer >= actualAttackSpeed)
                     {
                         MeleeAttack();
                         attackTimer = 0f;
                     }
                     break;
                 case WeaponType.Projectile:
-                    if (attackTimer >= currentWeapon.attackSpeed)
+                    if (attackTimer >= actualAttackSpeed)
                     {
                         ProjectileAttack();
                         attackTimer = 0f;
@@ -50,6 +86,18 @@ namespace ClawSurvivor.Weapons
                     UpdateOrbital();
                     break;
             }
+        }
+
+        /// <summary>
+        /// 获取实际攻击速度（考虑升级）
+        /// </summary>
+        private float GetActualAttackSpeed()
+        {
+            if (WeaponUpgradeSystem.Instance != null)
+            {
+                return WeaponUpgradeSystem.Instance.GetActualAttackSpeed(currentWeaponId);
+            }
+            return currentWeapon.attackSpeed;
         }
 
         private void MeleeAttack()
@@ -67,10 +115,9 @@ namespace ClawSurvivor.Weapons
 
             if (nearest != null)
             {
-                // 扇形范围判定
+                // 扇形范围判定 - 使用升级系统的伤害计算
                 Vector2 dir = (nearest.transform.position - transform.position).normalized;
-                float totalDamage = currentWeapon.baseDamage * player.DamageMultiplier;
-                int finalDamage = Mathf.RoundToInt(totalDamage);
+                int finalDamage = GetActualDamage();
 
                 Collider2D[] hits = Physics2D.OverlapCircleAll(transform.position, currentWeapon.range);
                 foreach (var col in hits)
@@ -87,6 +134,19 @@ namespace ClawSurvivor.Weapons
                 // 显示挥砍特效
                 CreateSlashEffect(dir);
             }
+        }
+
+        /// <summary>
+        /// 获取实际伤害（考虑升级）
+        /// </summary>
+        private int GetActualDamage()
+        {
+            float damage = currentWeapon.baseDamage * player.DamageMultiplier;
+            if (WeaponUpgradeSystem.Instance != null)
+            {
+                damage = WeaponUpgradeSystem.Instance.GetActualDamage(currentWeaponId) * player.DamageMultiplier;
+            }
+            return Mathf.RoundToInt(damage);
         }
 
         private void CreateSlashEffect(Vector2 direction)
@@ -109,7 +169,7 @@ namespace ClawSurvivor.Weapons
             var enemies = Enemy.EnemyController.AllEnemies;
             if (enemies.Count == 0) return;
 
-            float totalDamage = currentWeapon.baseDamage * player.DamageMultiplier;
+            int actualDamage = GetActualDamage();
 
             if (currentWeapon.projectileCount == 1)
             {
@@ -117,7 +177,7 @@ namespace ClawSurvivor.Weapons
                 Enemy.EnemyController nearest = FindNearest(currentWeapon.range);
                 if (nearest == null) return;
 
-                FireBullet(nearest.transform.position, Mathf.RoundToInt(totalDamage));
+                FireBullet(nearest.transform.position, actualDamage);
             }
             else
             {
@@ -132,7 +192,7 @@ namespace ClawSurvivor.Weapons
                     float angle = -spreadAngle + (spreadAngle * 2f / (currentWeapon.projectileCount - 1)) * i;
                     Vector2 dir = Quaternion.Euler(0, 0, angle) * baseDir;
                     Vector2 target = (Vector2)transform.position + dir * currentWeapon.range;
-                    FireBullet(target, Mathf.RoundToInt(totalDamage));
+                    FireBullet(target, actualDamage);
                 }
             }
         }
@@ -175,7 +235,8 @@ namespace ClawSurvivor.Weapons
                 orb.transform.localScale = Vector3.one * 0.3f;
 
                 orb.AddComponent<BoxCollider2D>().isTrigger = true;
-                orb.AddComponent<OrbitalDamage>().Initialize(currentWeapon.baseDamage, transform);
+                int actualDamage = GetActualDamage();
+                orb.AddComponent<OrbitalDamage>().Initialize(actualDamage, transform);
                 orbitalObjects.Add(orb);
             }
 
