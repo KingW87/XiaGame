@@ -49,6 +49,23 @@ namespace ClawSurvivor.UI
         {
             CreatePanelUI();
             gameObject.SetActive(false);
+
+            // 监听技能选择事件，自动装备给玩家
+            OnSkillSelected += OnSkillChosen;
+        }
+
+        private void OnDestroy()
+        {
+            OnSkillSelected -= OnSkillChosen;
+        }
+
+        private void OnSkillChosen(int index, SkillCard skill)
+        {
+            var player = FindObjectOfType<Player.PlayerController>();
+            if (player != null)
+            {
+                player.EquipSkill(skill);
+            }
         }
 
         /// <summary>

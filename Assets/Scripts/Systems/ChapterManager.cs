@@ -22,7 +22,7 @@ namespace ClawSurvivor.Systems
         [Header("毒圈设置")]
         [Tooltip("是否启用毒圈")]
         public bool poisonCircleEnabled = true;
-        [Tooltip("毒圈开始时间（秒，最后一here之前）")]
+        [Tooltip("毒圈开始时间（秒，最后一波之前）")]
         public float poisonCircleStartTime = 30f;
         [Tooltip("毒圈伤害间隔（秒）")]
         public float poisonDamageInterval = 0.5f;
